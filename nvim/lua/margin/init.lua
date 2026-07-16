@@ -440,9 +440,11 @@ local function open_review_tab(root, file, base)
   vim.bo[lbuf].filetype = vim.filetype.match { filename = file } or ''
   vim.cmd.diffthis()
   vim.wo.winhighlight = DIFF_WINHL
+  vim.wo.foldenable = false -- keep all context visible; folded runs make the sides hard to compare
   vim.cmd.wincmd 'p' -- back to the real file, where comments go
   vim.cmd.diffthis()
   vim.wo.winhighlight = DIFF_WINHL
+  vim.wo.foldenable = false
 end
 
 -- :MarginFiles — pick a review file (comment counts inline), jump to its tab
