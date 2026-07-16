@@ -9,9 +9,12 @@ AI code review in your editor's margin — powered by one JSONL file.
 You review a diff in Neovim (or a zero-dependency TUI) and leave comments
 inline. An AI agent answers threaded in place within seconds — and edits the
 code when a comment asks for a change. The entire transport is one append-only
-JSONL file: no server, no sockets, no browser. The design thesis is speed —
-appending a record takes ~1 ms, the watcher wakes in 0.2 s, rendering takes
-under 100 ms. The only real wait in the loop is model inference.
+JSONL file: no server, no sockets, no browser. That is a deliberate choice,
+not a shortcut — appending takes ~1 ms and rendering wakes in under 100 ms,
+while the model's answer takes seconds. Transport is a rounding error in this
+loop; a socket would optimize the part that doesn't matter. The file buys
+`cat`-level debuggability, a replayable record of the review, crash-safe
+append-only writes, and zero coupling between editor and agent.
 
 ```
   25 // Standard Stripe test card (Mastercard): https://docs.stripe.com/testing

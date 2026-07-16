@@ -244,8 +244,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <section id="how">
   <div class="wrap">
     <span class="kicker">How it works</span>
-    <h2>The transport is a file</h2>
-    <p class="lead">No server, no sockets, no browser. Editor and agent meet in one append-only JSONL file at the repo root — plus an ephemeral presence sidecar.</p>
+    <h2>The transport is a file — on purpose</h2>
+    <p class="lead">No server, no sockets, no browser. Editor and agent meet in one append-only JSONL file at the repo root — plus an ephemeral presence sidecar. Do the math before calling it slow: appending is ~1&nbsp;ms and the render wakes in under 100&nbsp;ms, while the model's answer takes seconds — transport is a rounding error in this loop, and a socket would optimize the part that doesn't matter. What the file buys instead: <code>cat</code>-level debuggability, a replayable record of the whole review, crash-safe append-only writes, and zero coupling — any editor or agent that can tail and append can join. git, maildir, SQLite: the boring option has good company.</p>
     <div class="steps">
       <div class="step"><span class="num">01</span><h3>Editor appends</h3><p>You comment on a line; Neovim (or the TUI) appends a <code>comment</code> record to <code>.margin/review.jsonl</code>. ~1&nbsp;ms.</p></div>
       <span class="arrow">&#8594;</span>
