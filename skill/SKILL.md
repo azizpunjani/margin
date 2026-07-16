@@ -25,6 +25,7 @@ All state lives in `<repo-root>/.margin/review.jsonl` (find repo root with
 - `{"type":"user-reply","replyTo":"c1","ts":...,"text":"follow-up"}` — the USER
   continuing a thread (nvim `<leader>mr`); it reopens the thread: answer it like
   a comment, using the full thread history (comment + prior replies) as context.
+- `{"type":"resolve","ids":["c1"],"ts":...}` — user archived threads (nvim <leader>mx / :MarginResolveAll); resolved threads need no further answers, skip them.
 - `{"type":"submit","ids":["c1","c2"],"ts":...,"diffArgs":[...],"cwd":"..."}` — user pressed S / `<leader>ms`; process now.
 - `{"type":"review-request","ts":...,"files":["src/a.ts",...],"base":"HEAD","note":"optional"}` —
   appended by YOU (the AI) to ask the user to review files you changed; nvim's

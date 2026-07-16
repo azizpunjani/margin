@@ -53,6 +53,10 @@ local function read_records(root)
         if rec.type == 'reply' then byid[rec.replyTo].chunks = {} end -- final reply supersedes chunks
       elseif rec.type == 'reply-chunk' and byid[rec.replyTo] then
         table.insert(byid[rec.replyTo].chunks, rec.text)
+      elseif rec.type == 'resolve' then
+        for _, id in ipairs(rec.ids or {}) do
+          if byid[id] then byid[id].resolved = true end
+        end
       elseif rec.type == 'review-request' then
         request = rec
       end
@@ -83,6 +87,7 @@ end
 -- AI-authored observations (author == "ai") are never pending on their own —
 -- only a user-reply reopens them.
 local function is_pending(t)
+  if t.resolved then return false end
   local last = t.replies[#t.replies]
   if t.comment.author == 'ai' then return last ~= nil and last.type ~= 'reply' end
   return not last or last.type ~= 'reply'
@@ -120,10 +125,17 @@ local function render_buf(buf, root, threads)
     if t.comment.file == rel then
       local key = buf .. ':' .. t.comment.id
       local id = markids[key]
-      local pos = id and vim.api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
-      local anchor = t.comment.endLine or t.comment.line -- range comments hang under the range
-      local row = (pos and pos[1]) or math.min(math.max(anchor - 1, 0), last)
-      markids[key] = vim.api.nvim_buf_set_extmark(buf, ns, math.min(row, last), 0, { id = id, virt_lines = virt_block(t) })
+      if t.resolved then
+        if id then
+          vim.api.nvim_buf_del_extmark(buf, ns, id)
+          markids[key] = nil
+        end
+      else
+        local pos = id and vim.api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
+        local anchor = t.comment.endLine or t.comment.line -- range comments hang under the range
+        local row = (pos and pos[1]) or math.min(math.max(anchor - 1, 0), last)
+        markids[key] = vim.api.nvim_buf_set_extmark(buf, ns, math.min(row, last), 0, { id = id, virt_lines = virt_block(t) })
+      end
     end
   end
 end
@@ -196,25 +208,56 @@ function M.add_user_reply(text, id, root)
 end
 
 -- <leader>mr: reply within the thread anchored at/nearest-above the cursor.
-function M.reply()
+-- Unresolved thread anchored at/nearest-above the cursor; returns id, root.
+local function thread_at_cursor()
   local buf = vim.api.nvim_get_current_buf()
   local root = root_of(buf)
-  if not root then return vim.notify('margin: buffer not in a git repo', vim.log.levels.WARN) end
+  if not root then return nil end
   local rel = vim.api.nvim_buf_get_name(buf):sub(#root + 2)
   local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
   local best_id, best_row
   for _, t in ipairs(read_records(root)) do
-    if t.comment.file == rel then
+    if t.comment.file == rel and not t.resolved then
       local id = markids[buf .. ':' .. t.comment.id]
       local pos = id and vim.api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
-      local row = (pos and pos[1]) or (t.comment.line - 1)
-      if row <= cur and (not best_row or row > best_row) then best_id, best_row = t.comment.id, row end
+      local span = (t.comment.endLine or t.comment.line) - t.comment.line
+      local anchor = (pos and pos[1]) or (t.comment.line - 1 + span)
+      local start = anchor - span -- range threads anchor at endLine; match from their first line
+      if start <= cur and (not best_row or start > best_row) then best_id, best_row = t.comment.id, start end
     end
   end
+  return best_id, root
+end
+
+function M.reply()
+  local best_id, root = thread_at_cursor()
+  if not root then return vim.notify('margin: buffer not in a git repo', vim.log.levels.WARN) end
   if not best_id then return vim.notify 'margin: no thread at or above cursor' end
   vim.ui.input({ prompt = 'Margin reply (' .. best_id .. '): ' }, function(text)
     if text and text ~= '' then M.add_user_reply(text, best_id, root) end
   end)
+end
+
+-- Resolve = archive: appends a resolve record; rendering and pending skip
+-- resolved threads (append-only file preserved, so nothing is lost).
+function M.resolve(all)
+  local root = repo_root()
+  if not root then return vim.notify('margin: no git repo', vim.log.levels.WARN) end
+  local ids
+  if all then
+    ids = {}
+    for _, t in ipairs(read_records(root)) do
+      if not t.resolved then ids[#ids + 1] = t.comment.id end
+    end
+  else
+    local id = thread_at_cursor()
+    if not id then return vim.notify 'margin: no thread at or above cursor' end
+    ids = { id }
+  end
+  if #ids == 0 then return vim.notify 'margin: nothing to resolve' end
+  append(root, { type = 'resolve', ids = ids, ts = os.time() * 1000 })
+  M.render(root)
+  vim.notify(('margin: resolved %d thread%s'):format(#ids, #ids == 1 and '' or 's'))
 end
 
 -- Presence: overwrite .margin/presence.json with where the user is looking so

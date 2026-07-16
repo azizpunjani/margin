@@ -15,8 +15,12 @@ vim.keymap.set('n', '<leader>mq', m 'quickfix', { desc = 'Margin: threads to qui
 vim.keymap.set('n', '<leader>mf', m 'files', { desc = 'Margin: pick review file' })
 vim.keymap.set('n', '<leader>mr', m 'reply', { desc = 'Margin: reply to thread at/above cursor' })
 
+vim.keymap.set('n', '<leader>mx', m 'resolve', { desc = 'Margin: resolve thread at/above cursor' })
+
 vim.api.nvim_create_user_command('MarginFiles', m 'files', { desc = 'Pick a review file to jump to' })
 vim.api.nvim_create_user_command('MarginReply', m 'reply', { desc = 'Reply to margin thread at/above cursor' })
+vim.api.nvim_create_user_command('MarginResolve', m 'resolve', { desc = 'Resolve margin thread at/above cursor' })
+vim.api.nvim_create_user_command('MarginResolveAll', m('resolve', true), { desc = 'Resolve all margin threads' })
 
 vim.api.nvim_create_user_command('MarginClear', m 'clear', { desc = 'Hide margin threads in current buffer' })
 vim.api.nvim_create_user_command('MarginShow', m 'show', { desc = 'Show margin threads in current buffer' })
