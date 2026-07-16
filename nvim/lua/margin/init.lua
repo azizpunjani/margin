@@ -48,9 +48,9 @@ local function read_records(root)
         local t = { comment = rec, replies = {}, chunks = {} }
         byid[rec.id] = t
         threads[#threads + 1] = t
-      elseif rec.type == 'reply' and byid[rec.replyTo] then
-        table.insert(byid[rec.replyTo].replies, rec)
-        byid[rec.replyTo].chunks = {} -- final reply supersedes streamed chunks
+      elseif (rec.type == 'reply' or rec.type == 'user-reply') and byid[rec.replyTo] then
+        table.insert(byid[rec.replyTo].replies, rec) -- file order == ts order (append-only)
+        if rec.type == 'reply' then byid[rec.replyTo].chunks = {} end -- final reply supersedes chunks
       elseif rec.type == 'reply-chunk' and byid[rec.replyTo] then
         table.insert(byid[rec.replyTo].chunks, rec.text)
       elseif rec.type == 'review-request' then
@@ -78,22 +78,30 @@ local function append(root, rec)
   f:close()
 end
 
+-- Pending = needs an AI answer: no reply at all, or the latest thread message
+-- (chronologically last, i.e. last in file order) is a user-reply.
+local function is_pending(t)
+  local last = t.replies[#t.replies]
+  return not last or last.type ~= 'reply'
+end
+
 local function virt_block(t)
-  local streaming = #t.replies == 0 and #t.chunks > 0
-  local vl, pending = {}, #t.replies == 0 and not streaming
+  local streaming = #t.chunks > 0 -- chunks are cleared by each final reply
+  local vl, pending = {}, is_pending(t) and not streaming
   for i, l in ipairs(vim.split(t.comment.text, '\n')) do
     vl[#vl + 1] = { { '┃ 💬 ' .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
+  end
+  for _, r in ipairs(t.replies) do -- interleaved AI/user messages, ts order
+    local prefix, hl = r.edit and '┃ ✏️ ' or '┃ 🤖 ', 'MarginReply'
+    if r.type == 'user-reply' then prefix, hl = '┃ 👤 ', 'MarginComment' end
+    for _, l in ipairs(vim.split(r.text, '\n')) do
+      vl[#vl + 1] = { { prefix .. l, hl } }
+    end
   end
   if streaming then -- in-progress reply streamed as reply-chunk records
     local lines = vim.split(table.concat(t.chunks, ''), '\n')
     for i, l in ipairs(lines) do
       vl[#vl + 1] = { { '┃ 🤖 ' .. l .. (i == #lines and ' ▌' or ''), 'MarginReply' } }
-    end
-  end
-  for _, r in ipairs(t.replies) do
-    local prefix = r.edit and '┃ ✏️ ' or '┃ 🤖 ' -- edit:true = AI changed code
-    for _, l in ipairs(vim.split(r.text, '\n')) do
-      vl[#vl + 1] = { { prefix .. l, 'MarginReply' } }
     end
   end
   return vl
@@ -169,6 +177,57 @@ function M.add_comment(text, buf, line)
   return rec
 end
 
+-- Internal, testable core: append a user-reply continuing thread `id`.
+function M.add_user_reply(text, id, root)
+  root = root or repo_root()
+  if not root then return end
+  local rec = { type = 'user-reply', replyTo = id, ts = os.time() * 1000, text = text }
+  append(root, rec)
+  M.render(root)
+  return rec
+end
+
+-- <leader>mr: reply within the thread anchored at/nearest-above the cursor.
+function M.reply()
+  local buf = vim.api.nvim_get_current_buf()
+  local root = root_of(buf)
+  if not root then return vim.notify('margin: buffer not in a git repo', vim.log.levels.WARN) end
+  local rel = vim.api.nvim_buf_get_name(buf):sub(#root + 2)
+  local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local best_id, best_row
+  for _, t in ipairs(read_records(root)) do
+    if t.comment.file == rel then
+      local id = markids[buf .. ':' .. t.comment.id]
+      local pos = id and vim.api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
+      local row = (pos and pos[1]) or (t.comment.line - 1)
+      if row <= cur and (not best_row or row > best_row) then best_id, best_row = t.comment.id, row end
+    end
+  end
+  if not best_id then return vim.notify 'margin: no thread at or above cursor' end
+  vim.ui.input({ prompt = 'Margin reply (' .. best_id .. '): ' }, function(text)
+    if text and text ~= '' then M.add_user_reply(text, best_id, root) end
+  end)
+end
+
+-- Presence: overwrite .margin/presence.json with where the user is looking so
+-- the AI can pre-read that code. Only for repos with an active review file;
+-- throttled (same file + <10 line move = skip). Returns true when written.
+local last_presence = {}
+function M.presence(buf, line)
+  buf = buf or vim.api.nvim_get_current_buf()
+  local root = root_of(buf)
+  if not root or not uv.fs_stat(review_path(root)) then return end
+  line = line or vim.api.nvim_win_get_cursor(0)[1]
+  local file = vim.api.nvim_buf_get_name(buf):sub(#root + 2)
+  local lp = last_presence
+  if lp.root == root and lp.file == file and math.abs(line - lp.line) < 10 then return end
+  last_presence = { root = root, file = file, line = line }
+  local f = assert(io.open(root .. '/.margin/presence.json', 'w'))
+  f:write(vim.json.encode { file = file, line = line, ts = os.time() * 1000 })
+  f:close()
+  return true
+end
+
 function M.comment()
   local buf, line = vim.api.nvim_get_current_buf(), vim.fn.line '.'
   if vim.fn.mode():match '^[vV\22]' then
@@ -185,7 +244,7 @@ function M.submit()
   if not root then return vim.notify('margin: no git repo', vim.log.levels.WARN) end
   local ids = {}
   for _, t in ipairs(read_records(root)) do
-    if #t.replies == 0 then ids[#ids + 1] = t.comment.id end
+    if is_pending(t) then ids[#ids + 1] = t.comment.id end
   end
   if #ids == 0 then return vim.notify 'margin: no pending comments' end
   append(root, { type = 'submit', ids = ids, ts = os.time() * 1000, diffArgs = {}, cwd = root })
@@ -272,7 +331,7 @@ function M.files()
   local counts = {}
   for _, t in ipairs(threads) do
     local c = counts[t.comment.file] or { total = 0, pending = 0 }
-    c.total, c.pending = c.total + 1, c.pending + (#t.replies == 0 and 1 or 0)
+    c.total, c.pending = c.total + 1, c.pending + (is_pending(t) and 1 or 0)
     counts[t.comment.file] = c
   end
   local labels = {}

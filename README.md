@@ -32,6 +32,9 @@ Append-only JSONL at `<repo>/.margin/review.jsonl`:
 - `submit` — written on `S` with the pending comment ids; signals the AI to process
 - `reply` — appended by the AI (`replyTo` links it to a comment); may carry
   `"edit":true` when the AI changed code to satisfy the comment
+- `user-reply` — the user continuing a thread (`replyTo`, `ts`, `text`); reopens
+  it: a thread is pending when it has no AI reply, or its latest message is a
+  user-reply
 - `review-request` — appended by the AI (`files` repo-root-relative, `base` git
   rev, optional `note`); asks the human to review those files (`:MarginReview`
   in nvim picks it up)
@@ -66,13 +69,21 @@ vim.opt.runtimepath:prepend '/path/to/margin/nvim'
 |---|---|
 | `<leader>mc` (n/v) | comment on current line (visual: range start) |
 | `<leader>ms` | submit all pending comments |
+| `<leader>mr` | reply within the thread at/nearest above the cursor |
 | `<leader>mn` / `<leader>mp` | jump next / prev thread in buffer |
 | `<leader>mq` | all threads to quickfix |
 | `:MarginReview [base]` | diff tabs for the latest `review-request` (or all files changed vs `base`); base version left (readonly), working file right — comment on the right; `gt`/`gT` switches files |
 | `:MarginClear` / `:MarginShow` | hide / re-show thread virt_lines in buffer |
 
 Threads render as virt_lines under the commented line (`┃ 💬` comment, `⏳`
-pending, `┃ 🤖` reply, `┃ ✏️` reply where the AI edited code — highlight groups
-`MarginComment` / `MarginReply`). The plugin watches `review.jsonl` per repo
-root (multi-repo safe) and re-renders on change; it also runs `:checktime` so
-AI edits to files on disk reload into your buffers (keep `autoread` on).
+pending, `┃ 🤖` reply, `┃ ✏️` reply where the AI edited code, `┃ 👤` your
+threaded replies — highlight groups `MarginComment` / `MarginReply`). Messages
+interleave in timestamp order. The plugin watches `review.jsonl` per repo root
+(multi-repo safe) and re-renders on change; it also runs `:checktime` so AI
+edits to files on disk reload into your buffers (keep `autoread` on).
+
+The plugin also overwrites the ephemeral `.margin/presence.json`
+(`{"file":...,"line":...,"ts":...}`) when your cursor dwells ~2 seconds at a
+spot (throttled: same file and <10-line moves are skipped) — presence fires
+when you linger, so the AI primes on code you're actually reading, before any
+comment exists.

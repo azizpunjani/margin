@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run src/main.ts",
     "build": "bun build src/main.ts --compile --outfile dist/margin",
-    "test": "bun test"
+    "test": "bun test",
+    "test:nvim": "bash nvim/tests/run.sh"
   }
 }

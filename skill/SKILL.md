@@ -20,17 +20,28 @@ All state lives in `<repo-root>/.margin/review.jsonl` (find repo root with
 - `{"type":"reply-chunk","replyTo":"c1","ts":...,"text":"partial..."}` — streamed
   fragment of an in-progress reply; frontends concatenate chunks and show a
   typing cursor until the final `reply` record for that id supersedes them.
+- `{"type":"user-reply","replyTo":"c1","ts":...,"text":"follow-up"}` — the USER
+  continuing a thread (nvim `<leader>mr`); it reopens the thread: answer it like
+  a comment, using the full thread history (comment + prior replies) as context.
 - `{"type":"submit","ids":["c1","c2"],"ts":...,"diffArgs":[...],"cwd":"..."}` — user pressed S / `<leader>ms`; process now.
 - `{"type":"review-request","ts":...,"files":["src/a.ts",...],"base":"HEAD","note":"optional"}` —
   appended by YOU (the AI) to ask the user to review files you changed; nvim's
   `:MarginReview` reads it. `files` are repo-root-relative; `base` is the git rev
   to diff against.
 
-A comment is **pending** if no reply line references its id.
+A thread is **pending** if it has no `reply` at all, OR its latest message
+(by ts, among `reply`/`user-reply`) is a `user-reply`.
+
+There is also an ephemeral sidecar file `.margin/presence.json` (a single JSON
+object, overwritten in place — NOT part of the jsonl):
+`{"file":"src/foo.ts","line":42,"ts":...}` — where the user's cursor is
+dwelling in nvim right now. Use it for priming (below); never reply to it.
 
 ## Steps
 
-1. Read `.margin/review.jsonl`. Collect pending comments (comments with no reply).
+1. Read `.margin/review.jsonl`. Collect pending threads (no reply yet, or the
+   user posted a `user-reply` after your last reply — answer those with the full
+   thread history as context).
 2. Read all pending comments in ONE pass, then answer them in order — but
    **append each reply IMMEDIATELY as it's composed**, one append per reply, the
    instant that answer is ready. Never hold replies to write together at the
@@ -69,9 +80,9 @@ A comment is **pending** if no reply line references its id.
    ```bash
    # background bash: exits (-> wakes Claude) on any new comment or submit
    F=<repo-root>/.margin/review.jsonl
-   N=$(grep -c '"type":"\(comment\|submit\)"' "$F")
+   N=$(grep -c '"type":"\(comment\|user-reply\|submit\)"' "$F")
    while :; do
-     C=$(grep -c '"type":"\(comment\|submit\)"' "$F" 2>/dev/null || echo 0)
+     C=$(grep -c '"type":"\(comment\|user-reply\|submit\)"' "$F" 2>/dev/null || echo 0)
      [ "$C" -gt "$N" ] && { echo "WAKE ($C records)"; exit 0; }
      sleep 0.2
    done
@@ -85,6 +96,30 @@ A comment is **pending** if no reply line references its id.
    grep exits on match but the shell keeps waiting on the immortal `tail`, so
    the task never completes and you never wake (verified failure). `fswatch -1`
    in a loop is fine IF fswatch is installed (it isn't by default here).
+
+## Presence priming (gaze-based)
+
+nvim overwrites `.margin/presence.json` whenever the user's cursor dwells ~2s
+somewhere in the repo — i.e. code they are actually READING, before any comment
+exists. Run a SECOND, slower background watcher on it:
+
+```bash
+# background bash: exits (-> wakes Claude) when the user's gaze moves
+P=<repo-root>/.margin/presence.json
+LAST="$(cat "$P" 2>/dev/null)"
+while :; do
+  CUR="$(cat "$P" 2>/dev/null)"
+  [ -n "$CUR" ] && [ "$CUR" != "$LAST" ] && { echo "PRESENCE $CUR"; exit 0; }
+  sleep 1
+done
+```
+
+On a presence wake: if it's a new file, or the line jumped >30 from the location
+you last primed on, pre-read ~60 lines around `file:line` and state a brief
+draft context in your own turn text (what this code does, likely questions) so
+it's already in conversation context when a real comment arrives. Then re-arm
+both watchers. **NEVER append a reply (or any record) from a presence wake** —
+presence is not a question.
 
 ## Requesting review of your own changes (nvim)
 
