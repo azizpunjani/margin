@@ -12,11 +12,11 @@ local markids = {} -- "<buf>:<comment id>" -> extmark id
 vim.api.nvim_set_hl(0, 'MarginComment', { default = true, link = 'DiagnosticVirtualTextWarn' })
 vim.api.nvim_set_hl(0, 'MarginReply', { default = true, fg = '#c678dd', italic = true })
 
--- GitHub-dark-style diff colors on near-black backgrounds; applied
+-- High-contrast diff colors on near-black backgrounds (user-picked); applied
 -- window-locally in review tabs only (global colorscheme untouched).
-vim.api.nvim_set_hl(0, 'MarginDiffAdd', { default = true, bg = '#12331d' })
-vim.api.nvim_set_hl(0, 'MarginDiffDelete', { default = true, bg = '#2d1215', fg = '#6e3b40' })
-vim.api.nvim_set_hl(0, 'MarginDiffChange', { default = true, bg = '#131f2e' })
+vim.api.nvim_set_hl(0, 'MarginDiffAdd', { default = true, bg = '#0f3a1f' })
+vim.api.nvim_set_hl(0, 'MarginDiffDelete', { default = true, bg = '#46141c', fg = '#7d3a3f' })
+vim.api.nvim_set_hl(0, 'MarginDiffChange', { default = true, bg = '#0e1a2e' })
 vim.api.nvim_set_hl(0, 'MarginDiffText', { default = true, bg = '#1f4468', bold = true })
 
 local DIFF_WINHL = 'DiffAdd:MarginDiffAdd,DiffDelete:MarginDiffDelete,DiffChange:MarginDiffChange,DiffText:MarginDiffText'
