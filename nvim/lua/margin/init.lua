@@ -191,6 +191,33 @@ local function ensure_watch(root)
   end)
 end
 
+local function teardown(root)
+  local st = repos[root]
+  if not st then return end
+  if st.watcher then st.watcher:stop() st.watcher:close() end
+  if st.timer then st.timer:stop() st.timer:close() end
+  repos[root] = nil
+end
+
+-- Stop watchers for repos no window shows anymore (tab/window closed);
+-- BufEnter re-arms via attach if the user comes back.
+function M.gc()
+  for root in pairs(repos) do
+    local visible = false
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if root_of(vim.api.nvim_win_get_buf(win)) == root then
+        visible = true
+        break
+      end
+    end
+    if not visible then teardown(root) end
+  end
+end
+
+function M.watching(root)
+  return repos[root] ~= nil
+end
+
 -- BufEnter: pick up existing reviews lazily (multi-repo safe: keyed by root).
 function M.attach(buf)
   local root = root_of(buf)
@@ -381,7 +408,22 @@ function M.show(buf)
 end
 
 local function open_review_tab(root, file, base)
-  vim.cmd.tabedit(vim.fn.fnameescape(root .. '/' .. file))
+  -- Stale swapfiles (nvim killed mid-review) otherwise abort the whole
+  -- :MarginReview loop with E325; open anyway and say so.
+  local au = vim.api.nvim_create_autocmd('SwapExists', {
+    once = true,
+    callback = function()
+      vim.v.swapchoice = 'e'
+      vim.schedule(function()
+        vim.notify('margin: swapfile existed for ' .. file .. ' — opened anyway', vim.log.levels.WARN)
+      end)
+    end,
+  })
+  local ok, err = pcall(vim.cmd.tabedit, vim.fn.fnameescape(root .. '/' .. file))
+  pcall(vim.api.nvim_del_autocmd, au)
+  if not ok then
+    return vim.notify('margin: could not open ' .. file .. ': ' .. err, vim.log.levels.ERROR)
+  end
   local old = vim.fn.systemlist { 'git', '-C', root, 'show', base .. ':' .. file }
   if vim.v.shell_error ~= 0 or #old == 0 then
     -- New at base: a diff would paint every line DiffAdd (unreadable, zero

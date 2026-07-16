@@ -36,6 +36,12 @@ vim.api.nvim_create_autocmd('BufEnter', {
   callback = function(a) require('margin').attach(a.buf) end,
 })
 
+vim.api.nvim_create_autocmd({ 'WinClosed', 'TabClosed' }, {
+  group = grp,
+  desc = 'Margin: stop watchers for repos no window shows anymore',
+  callback = function() vim.schedule(function() require('margin').gc() end) end,
+})
+
 vim.api.nvim_create_autocmd({ 'WinResized', 'VimResized' }, {
   group = grp,
   desc = 'Margin: re-wrap thread text to new window width',
