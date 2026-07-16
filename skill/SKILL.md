@@ -123,6 +123,22 @@ it's already in conversation context when a real comment arrives. Then re-arm
 both watchers. **NEVER append a reply (or any record) from a presence wake** —
 presence is not a question.
 
+## AI first-pass observations (do this whenever a review starts)
+
+When a review begins — you write a review-request, or the user opens one and
+starts commenting — do ONE quick pass over the diff and leave observations on
+genuinely suspicious lines as AI-authored comments:
+
+```bash
+echo '{"type":"comment","id":"c8","author":"ai","ts":...,"file":"src/a.ts","line":42,"side":"new","excerpt":"<the line>","text":"<risk/bug/edge case, 1-2 sentences>","status":"pending"}' >> .margin/review.jsonl
+```
+
+Rules: `"author":"ai"` is REQUIRED (renders 💡, never re-submitted to you);
+only real findings — bugs, risks, silent failure modes, misleading comments —
+never style nits; cap at 3-5 per review; continue your id sequence; one pass
+only, don't re-annotate on every wake. Answer the user's own comments FIRST if
+any are pending.
+
 ## Requesting review of your own changes (nvim)
 
 When you finish making code changes and the user wants to review them:
