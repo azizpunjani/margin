@@ -52,7 +52,7 @@ edited line 27 and the buffer reloaded.
 - **File picker with comment counts** — `<leader>mf`.
 - **Diff review vs any base** — `:MarginReview [base]` opens diff tabs (base
   left, working file right); files that don't exist at base open plain.
-- **Gaze priming** — nvim writes `.margin/presence.json` when your cursor
+- **Presence priming** — nvim writes `.margin/presence.json` when your cursor
   dwells ~2 s, so the AI pre-reads the code you're looking at before you type.
 - **Zero-dependency compiled TUI** — review any git diff from a bare shell.
 - **Open, file-based protocol** — anything that can read and append a file can

@@ -223,19 +223,19 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <section id="features">
   <div class="wrap">
     <span class="kicker">Features</span>
-    <h2>Everything a review needs, nothing a review doesn't</h2>
+    <h2>Features</h2>
     <p class="lead">Built around one thesis: <b>speed</b>. Appending a record takes ~1&nbsp;ms, the watcher wakes in 0.2&nbsp;s, rendering takes &lt;100&nbsp;ms. The only real wait in the loop is model inference.</p>
     <div class="grid">
       <div class="card"><span class="g">&#x1F4AC;</span><h3>Inline threaded comments</h3><p>Comment on any line; replies interleave in timestamp order under the code: &#x1F4AC; you, &#x1F916; AI, &#x1F464; your follow-ups.</p></div>
       <div class="card"><span class="g">&#x270F;&#xFE0F;</span><h3>AI code edits from comments</h3><p>"Rename this", "handle null here" — the agent makes the edit, marks the reply <code>"edit":true</code>, and your buffer reloads with the change.</p></div>
-      <div class="card"><span class="g">&#x1F4A1;</span><h3>First-pass observations</h3><p>The AI can annotate risky lines before you ask — locale traps, silent skips, sharp edges — rendered as &#x1F4A1; threads.</p></div>
+      <div class="card"><span class="g">&#x1F4A1;</span><h3>First-pass observations</h3><p>When a review starts, the bundled skill scans the diff once and flags possible bugs or risks as &#x1F4A1; threads (a handful max, no style nits).</p></div>
       <div class="card"><span class="g">&#x258D;</span><h3>Streaming replies</h3><p>Long answers stream in as <code>reply-chunk</code> records with a typing cursor (&#x258C;) until the final reply supersedes them.</p></div>
       <div class="card"><span class="g">&#x2195;&#xFE0F;</span><h3>Visual-range comments</h3><p>Select lines in visual mode, hit <kbd>&lt;leader&gt;mc</kbd> — the thread shows <code>[L26&#8211;31]</code> and the AI reasons about the whole span.</p></div>
       <div class="card"><span class="g">&#x2713;</span><h3>Resolve &amp; archive</h3><p><kbd>&lt;leader&gt;mx</kbd> resolves the thread at the cursor; <code>:MarginResolveAll</code> clears the board. Resolved threads stop rendering.</p></div>
       <div class="card"><span class="g">&#x1F4C2;</span><h3>File picker with counts</h3><p><kbd>&lt;leader&gt;mf</kbd> lists the files under review with their comment counts inline; jump straight to a file's tab.</p></div>
       <div class="card"><span class="g">&#x2637;</span><h3>Diff review vs any base</h3><p><code>:MarginReview [base]</code> opens diff tabs — base version left (readonly), working file right. Files new at base open plain.</p></div>
-      <div class="card"><span class="g">&#x1F441;&#xFE0F;</span><h3>Gaze priming</h3><p>When your cursor dwells ~2&nbsp;s, nvim writes <code>presence.json</code>; the AI pre-reads the code you're looking at before you type a word.</p></div>
-      <div class="card"><span class="g">&#x26A1;</span><h3>Zero-dep compiled TUI</h3><p>A single compiled binary (Bun + raw ANSI). Review and comment on any git diff with no editor and no dependencies.</p></div>
+      <div class="card"><span class="g">&#x1F441;&#xFE0F;</span><h3>Presence priming</h3><p>When your cursor dwells ~2&nbsp;s, nvim writes the location to <code>presence.json</code>; the agent can pre-read that code so answers start from context.</p></div>
+      <div class="card"><span class="g">&#x26A1;</span><h3>Zero-dep compiled TUI</h3><p>A single compiled binary (Bun + raw ANSI): view a diff, comment, and read replies without an editor. Threads, ranges, and resolve are Neovim-only today.</p></div>
       <div class="card"><span class="g">&#x1F4C4;</span><h3>An open, file-based protocol</h3><p>Everything is append-only JSONL in <code>.margin/review.jsonl</code>. Anything that can read and append a file can join the conversation.</p></div>
     </div>
   </div>
@@ -290,7 +290,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
       </div>
       <div class="card">
         <h3>Claude Code</h3>
-        <p>The bundled <code>margin-review</code> skill makes Claude Code a review partner: it acks your comment within a second, streams the answer, edits code on request, primes on your gaze via <code>presence.json</code>, and files <code>review-request</code>s for its own changes.</p>
+        <p>The bundled <code>margin-review</code> skill makes Claude Code a review partner: it watches the review file, acks new comments, streams answers, edits code on request, pre-reads code near your cursor via <code>presence.json</code>, and appends <code>review-request</code>s for its own changes.</p>
       </div>
       <div class="card">
         <h3>Bring your own agent</h3>
