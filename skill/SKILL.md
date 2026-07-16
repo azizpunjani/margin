@@ -14,7 +14,9 @@ watching for more.
 All state lives in `<repo-root>/.margin/review.jsonl` (find repo root with
 `git rev-parse --show-toplevel`). Append-only JSONL:
 
-- `{"type":"comment","id":"c1","ts":...,"file":"src/foo.ts","line":42,"side":"new"|"old","excerpt":"the line text","text":"user question","status":"pending"}`
+- `{"type":"comment","id":"c1","ts":...,"file":"src/foo.ts","line":42,"side":"new"|"old","excerpt":"the line text","text":"user question","status":"pending"}` — may
+  carry `"endLine":N` (visual-range comment): read and reason about the WHOLE
+  `line..endLine` span, not just `line`.
 - `{"type":"reply","replyTo":"c1","ts":...,"text":"your answer"}` — add
   `"edit":true` when you changed code to satisfy the comment (see below).
 - `{"type":"reply-chunk","replyTo":"c1","ts":...,"text":"partial..."}` — streamed

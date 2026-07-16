@@ -92,8 +92,9 @@ local function virt_block(t)
   local streaming = #t.chunks > 0 -- chunks are cleared by each final reply
   local vl, pending = {}, is_pending(t) and not streaming
   local cprefix = t.comment.author == 'ai' and '┃ 💡 ' or '┃ 💬 ' -- 💡 = AI observation
+  local range = t.comment.endLine and ('[L%d–%d] '):format(t.comment.line, t.comment.endLine) or ''
   for i, l in ipairs(vim.split(t.comment.text, '\n')) do
-    vl[#vl + 1] = { { cprefix .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
+    vl[#vl + 1] = { { cprefix .. (i == 1 and range or '') .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
   end
   for _, r in ipairs(t.replies) do -- interleaved AI/user messages, ts order
     local prefix, hl = r.edit and '┃ ✏️ ' or '┃ 🤖 ', 'MarginReply'
@@ -120,7 +121,8 @@ local function render_buf(buf, root, threads)
       local key = buf .. ':' .. t.comment.id
       local id = markids[key]
       local pos = id and vim.api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
-      local row = (pos and pos[1]) or math.min(math.max(t.comment.line - 1, 0), last)
+      local anchor = t.comment.endLine or t.comment.line -- range comments hang under the range
+      local row = (pos and pos[1]) or math.min(math.max(anchor - 1, 0), last)
       markids[key] = vim.api.nvim_buf_set_extmark(buf, ns, math.min(row, last), 0, { id = id, virt_lines = virt_block(t) })
     end
   end
@@ -157,8 +159,9 @@ function M.attach(buf)
   render_buf(buf, root, read_records(root))
 end
 
--- Internal, testable core: append a comment record for buf:line.
-function M.add_comment(text, buf, line)
+-- Internal, testable core: append a comment record for buf:line (optionally
+-- spanning to end_line for visual-range comments).
+function M.add_comment(text, buf, line, end_line)
   buf = buf or vim.api.nvim_get_current_buf()
   local root = root_of(buf)
   if not root then return vim.notify('margin: buffer not in a git repo', vim.log.levels.WARN) end
@@ -171,6 +174,7 @@ function M.add_comment(text, buf, line)
     line = line,
     side = 'new',
     excerpt = vim.api.nvim_buf_get_lines(buf, line - 1, line, false)[1] or '',
+    endLine = end_line, -- nil for single-line comments (key omitted in JSON)
     text = text,
     status = 'pending',
   }
@@ -233,13 +237,18 @@ function M.presence(buf, line)
 end
 
 function M.comment()
-  local buf, line = vim.api.nvim_get_current_buf(), vim.fn.line '.'
+  local buf, line, end_line = vim.api.nvim_get_current_buf(), vim.fn.line '.', nil
   if vim.fn.mode():match '^[vV\22]' then
-    line = math.min(line, vim.fn.line 'v')
-    vim.api.nvim_feedkeys(vim.keycode '<Esc>', 'n', false)
+    local vline = vim.fn.line 'v'
+    line, end_line = math.min(line, vline), math.max(line, vline)
+    if end_line == line then end_line = nil end
+    vim.cmd 'normal! \27' -- leave visual synchronously: no stray keys, no cursor jump
   end
-  vim.ui.input({ prompt = 'Margin comment: ' }, function(text)
-    if text and text ~= '' then M.add_comment(text, buf, line) end
+  vim.schedule(function() -- input opens after mode change settles
+    local hint = end_line and (' (L%d–%d)'):format(line, end_line) or ''
+    vim.ui.input({ prompt = 'Margin comment' .. hint .. ': ' }, function(text)
+      if text and text ~= '' then M.add_comment(text, buf, line, end_line) end
+    end)
   end)
 end
 
