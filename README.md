@@ -147,9 +147,10 @@ done
   records for its own changes. Run Claude Code in another terminal in the same
   repo and invoke the skill.
 - **Any agent** — implement the protocol above; append-only is the only rule.
-- **herdr / tmux (optional)** — when the AI requests a review of its own
-  changes, it can auto-open `nvim +MarginReview` in a split pane. Without a
-  multiplexer it degrades gracefully: run `nvim +MarginReview` yourself.
+- **Multiplexers (optional)** — when the AI requests a review of its own
+  changes, it can auto-open `nvim +MarginReview` in a split pane (herdr
+  supported out of the box; tmux/wezterm are a few lines in the skill).
+  Without one it degrades gracefully: run `nvim +MarginReview` yourself.
 
 ## Development
 
