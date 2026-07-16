@@ -12,6 +12,15 @@ local markids = {} -- "<buf>:<comment id>" -> extmark id
 vim.api.nvim_set_hl(0, 'MarginComment', { default = true, link = 'DiagnosticVirtualTextWarn' })
 vim.api.nvim_set_hl(0, 'MarginReply', { default = true, fg = '#c678dd', italic = true })
 
+-- GitHub-dark-style diff colors on near-black backgrounds; applied
+-- window-locally in review tabs only (global colorscheme untouched).
+vim.api.nvim_set_hl(0, 'MarginDiffAdd', { default = true, bg = '#12331d' })
+vim.api.nvim_set_hl(0, 'MarginDiffDelete', { default = true, bg = '#2d1215', fg = '#6e3b40' })
+vim.api.nvim_set_hl(0, 'MarginDiffChange', { default = true, bg = '#131f2e' })
+vim.api.nvim_set_hl(0, 'MarginDiffText', { default = true, bg = '#1f4468', bold = true })
+
+local DIFF_WINHL = 'DiffAdd:MarginDiffAdd,DiffDelete:MarginDiffDelete,DiffChange:MarginDiffChange,DiffText:MarginDiffText'
+
 local function root_of(buf)
   local name = vim.api.nvim_buf_get_name(buf)
   if name == '' or vim.bo[buf].buftype ~= '' then return nil end
@@ -230,8 +239,10 @@ local function open_review_tab(root, file, base)
   vim.bo[lbuf].modifiable, vim.bo[lbuf].readonly = false, true
   vim.bo[lbuf].filetype = vim.filetype.match { filename = file } or ''
   vim.cmd.diffthis()
+  vim.wo.winhighlight = DIFF_WINHL
   vim.cmd.wincmd 'p' -- back to the real file, where comments go
   vim.cmd.diffthis()
+  vim.wo.winhighlight = DIFF_WINHL
 end
 
 -- :MarginFiles — pick a review file (comment counts inline), jump to its tab
