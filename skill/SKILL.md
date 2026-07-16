@@ -53,18 +53,24 @@ A comment is **pending** if no reply line references its id.
    ```
    Escape the JSON properly (prefer writing via a heredoc or `jq -n` if quotes get hairy).
 6. Also print each answer in the terminal so the user sees it here too.
-7. Then keep watching for further `submit` records — **event-driven, never
-   sleep-polling**. Use the Monitor tool on the file if available; otherwise a
-   background bash loop: `fswatch -1 .margin/review.jsonl` per iteration if
-   `fswatch` exists, else `tail -n0 -f` filtered for submits:
+7. Then keep watching for further `submit` records with a background bash task
+   (run_in_background) that EXITS when a new submit lands — its completion
+   notification wakes you. Use this exact pattern (a fast poll on submit COUNT):
    ```bash
-   # background bash: block until the next submit lands, then re-check pending
+   # background bash: exits (-> wakes Claude) when a NEW submit is appended
+   F=<repo-root>/.margin/review.jsonl
+   N=$(grep -c '"type":"submit"' "$F")
    while :; do
-     if command -v fswatch >/dev/null; then fswatch -1 .margin/review.jsonl >/dev/null
-     else tail -n0 -f .margin/review.jsonl | grep -q '"type":"submit"'; fi
-     echo "submit detected"   # -> re-read file, answer new pending comments
+     C=$(grep -c '"type":"submit"' "$F" 2>/dev/null || echo 0)
+     [ "$C" -gt "$N" ] && { echo NEW_SUBMIT; exit 0; }
+     sleep 0.2
    done
    ```
+   Restart the watcher after answering each batch. Do NOT use
+   `tail -f | grep -q ...` — grep exits on match but the shell keeps waiting on
+   the immortal `tail`, so the task never completes and you never wake (verified
+   failure). `fswatch -1` in a loop is fine IF fswatch is installed (it isn't by
+   default on this machine).
 
 ## Requesting review of your own changes (nvim)
 
