@@ -80,16 +80,20 @@ end
 
 -- Pending = needs an AI answer: no reply at all, or the latest thread message
 -- (chronologically last, i.e. last in file order) is a user-reply.
+-- AI-authored observations (author == "ai") are never pending on their own —
+-- only a user-reply reopens them.
 local function is_pending(t)
   local last = t.replies[#t.replies]
+  if t.comment.author == 'ai' then return last ~= nil and last.type ~= 'reply' end
   return not last or last.type ~= 'reply'
 end
 
 local function virt_block(t)
   local streaming = #t.chunks > 0 -- chunks are cleared by each final reply
   local vl, pending = {}, is_pending(t) and not streaming
+  local cprefix = t.comment.author == 'ai' and '┃ 💡 ' or '┃ 💬 ' -- 💡 = AI observation
   for i, l in ipairs(vim.split(t.comment.text, '\n')) do
-    vl[#vl + 1] = { { '┃ 💬 ' .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
+    vl[#vl + 1] = { { cprefix .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
   end
   for _, r in ipairs(t.replies) do -- interleaved AI/user messages, ts order
     local prefix, hl = r.edit and '┃ ✏️ ' or '┃ 🤖 ', 'MarginReply'
