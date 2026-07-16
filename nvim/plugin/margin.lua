@@ -12,6 +12,9 @@ vim.keymap.set('n', '<leader>ms', m 'submit', { desc = 'Margin: submit pending c
 vim.keymap.set('n', '<leader>mn', m('jump', 1), { desc = 'Margin: next thread' })
 vim.keymap.set('n', '<leader>mp', m('jump', -1), { desc = 'Margin: prev thread' })
 vim.keymap.set('n', '<leader>mq', m 'quickfix', { desc = 'Margin: threads to quickfix' })
+vim.keymap.set('n', '<leader>mf', m 'files', { desc = 'Margin: pick review file' })
+
+vim.api.nvim_create_user_command('MarginFiles', m 'files', { desc = 'Pick a review file to jump to' })
 
 vim.api.nvim_create_user_command('MarginClear', m 'clear', { desc = 'Hide margin threads in current buffer' })
 vim.api.nvim_create_user_command('MarginShow', m 'show', { desc = 'Show margin threads in current buffer' })

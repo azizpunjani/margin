@@ -218,9 +218,61 @@ function M.show(buf)
   if root then render_buf(buf, root, read_records(root)) end
 end
 
+local function open_review_tab(root, file, base)
+  vim.cmd.tabedit(vim.fn.fnameescape(root .. '/' .. file))
+  local old = vim.fn.systemlist { 'git', '-C', root, 'show', base .. ':' .. file }
+  if vim.v.shell_error ~= 0 then old = {} end -- file new at base
+  vim.cmd 'leftabove vertical new'
+  local lbuf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(lbuf, 0, -1, false, old)
+  vim.api.nvim_buf_set_name(lbuf, 'margin://' .. base .. ':' .. file)
+  vim.bo[lbuf].buftype, vim.bo[lbuf].bufhidden, vim.bo[lbuf].swapfile = 'nofile', 'wipe', false
+  vim.bo[lbuf].modifiable, vim.bo[lbuf].readonly = false, true
+  vim.bo[lbuf].filetype = vim.filetype.match { filename = file } or ''
+  vim.cmd.diffthis()
+  vim.cmd.wincmd 'p' -- back to the real file, where comments go
+  vim.cmd.diffthis()
+end
+
+-- :MarginFiles — pick a review file (comment counts inline), jump to its tab
+-- or open it. Scales past what gt/gT can handle.
+function M.files()
+  local root = repo_root()
+  if not root then return vim.notify('margin: no git repo', vim.log.levels.WARN) end
+  local threads, req = read_records(root)
+  if not req or not req.files or #req.files == 0 then
+    return vim.notify('margin: no review-request record', vim.log.levels.WARN)
+  end
+  local counts = {}
+  for _, t in ipairs(threads) do
+    local c = counts[t.comment.file] or { total = 0, pending = 0 }
+    c.total, c.pending = c.total + 1, c.pending + (#t.replies == 0 and 1 or 0)
+    counts[t.comment.file] = c
+  end
+  local labels = {}
+  for i, f in ipairs(req.files) do
+    local c = counts[f]
+    labels[i] = f .. (c and ('  💬 ' .. c.total .. (c.pending > 0 and ' ⏳' or '')) or '')
+  end
+  vim.ui.select(labels, { prompt = 'Margin files' }, function(_, idx)
+    if not idx then return end
+    local path = root .. '/' .. req.files[idx]
+    for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+        if vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win)) == path then
+          vim.api.nvim_set_current_tabpage(tab)
+          vim.api.nvim_set_current_win(win)
+          return
+        end
+      end
+    end
+    open_review_tab(root, req.files[idx], req.base or 'HEAD')
+  end)
+end
+
 -- :MarginReview [base] — one tab per file: git-show base on the left (readonly
 -- scratch), the real working file on the right; both in diff mode. Comment on
--- the right buffer as usual. Switch files with gt/gT.
+-- the right buffer as usual. Switch files with gt/gT or the <leader>mf picker.
 function M.review(base)
   local root = repo_root()
   if not root then return vim.notify('margin: no git repo', vim.log.levels.WARN) end
@@ -236,21 +288,9 @@ function M.review(base)
   end
   if not files or #files == 0 then return vim.notify 'margin: nothing to review' end
   for _, file in ipairs(files) do
-    vim.cmd.tabedit(vim.fn.fnameescape(root .. '/' .. file))
-    local old = vim.fn.systemlist { 'git', '-C', root, 'show', base .. ':' .. file }
-    if vim.v.shell_error ~= 0 then old = {} end -- file new at base
-    vim.cmd 'leftabove vertical new'
-    local lbuf = vim.api.nvim_get_current_buf()
-    vim.api.nvim_buf_set_lines(lbuf, 0, -1, false, old)
-    vim.api.nvim_buf_set_name(lbuf, 'margin://' .. base .. ':' .. file)
-    vim.bo[lbuf].buftype, vim.bo[lbuf].bufhidden, vim.bo[lbuf].swapfile = 'nofile', 'wipe', false
-    vim.bo[lbuf].modifiable, vim.bo[lbuf].readonly = false, true
-    vim.bo[lbuf].filetype = vim.filetype.match { filename = file } or ''
-    vim.cmd.diffthis()
-    vim.cmd.wincmd 'p' -- back to the real file, where comments go
-    vim.cmd.diffthis()
+    open_review_tab(root, file, base)
   end
-  vim.notify(('margin: reviewing %d file(s) vs %s — gt/gT to switch'):format(#files, base))
+  vim.notify(('margin: reviewing %d file(s) vs %s — gt/gT or <leader>mf to switch'):format(#files, base))
 end
 
 return M
