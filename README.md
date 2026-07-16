@@ -7,7 +7,7 @@ AI code review in your editor's margin — powered by one JSONL file.
 [![Made with Bun](https://img.shields.io/badge/built%20with-bun-f9f1e1.svg)](https://bun.sh)
 
 You review a diff in Neovim (or a zero-dependency TUI) and leave comments
-inline. An AI agent answers threaded in place within seconds — and edits the
+inline. An AI agent answers threaded in place — and edits the
 code when a comment asks for a change. The entire transport is one append-only
 JSONL file: no server, no sockets, no browser. That is a deliberate choice,
 not a shortcut — appending takes ~1 ms and rendering wakes in under 100 ms,
@@ -36,7 +36,7 @@ append-only writes, and zero coupling between editor and agent.
      ┃    comment updated — buffer should have reloa…
 ```
 
-One thread, seconds apart: question → answer → follow-up → code change. The AI
+One thread: question → answer → follow-up → code change. The AI
 edited line 27 and the buffer reloaded.
 
 ## Features
