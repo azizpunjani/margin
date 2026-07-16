@@ -17,6 +17,9 @@ All state lives in `<repo-root>/.margin/review.jsonl` (find repo root with
 - `{"type":"comment","id":"c1","ts":...,"file":"src/foo.ts","line":42,"side":"new"|"old","excerpt":"the line text","text":"user question","status":"pending"}`
 - `{"type":"reply","replyTo":"c1","ts":...,"text":"your answer"}` — add
   `"edit":true` when you changed code to satisfy the comment (see below).
+- `{"type":"reply-chunk","replyTo":"c1","ts":...,"text":"partial..."}` — streamed
+  fragment of an in-progress reply; frontends concatenate chunks and show a
+  typing cursor until the final `reply` record for that id supersedes them.
 - `{"type":"submit","ids":["c1","c2"],"ts":...,"diffArgs":[...],"cwd":"..."}` — user pressed S / `<leader>ms`; process now.
 - `{"type":"review-request","ts":...,"files":["src/a.ts",...],"base":"HEAD","note":"optional"}` —
   appended by YOU (the AI) to ask the user to review files you changed; nvim's
@@ -32,9 +35,16 @@ A comment is **pending** if no reply line references its id.
    **append each reply IMMEDIATELY as it's composed**, one append per reply, the
    instant that answer is ready. Never hold replies to write together at the
    end — the TUI/nvim render replies one-by-one as they stream in.
-3. **First-response priority:** on detecting a submit, answer the FIRST comment
-   before anything else (no preamble work, no summarizing, no plan) — the user
-   should see the first reply in roughly model-inference time.
+3. **First-response priority:** on detecting a submit, your VERY FIRST tool call
+   must append an ack chunk for the first pending comment — before reading any
+   files — so the user sees life within a second of your wake-up:
+   ```bash
+   echo '{"type":"reply-chunk","replyTo":"c3","ts":...,"text":"reading gmail.ts:32… "}' >> .margin/review.jsonl
+   ```
+   (Combine it with the `cat` of review.jsonl in one bash call if you already
+   know the pending id from the watcher output.) Then compose the real answer
+   and append the final `reply` record — it replaces the chunk display. For
+   long multi-part answers, append additional reply-chunk fragments as you go.
 4. For each comment:
    - Read the referenced file around `line` (side "new" = current file line number;
      side "old" = pre-change line, check the diff via `diffArgs` if needed).

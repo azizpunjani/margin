@@ -45,11 +45,14 @@ local function read_records(root)
     local ok, rec = pcall(vim.json.decode, line)
     if ok and type(rec) == 'table' then
       if rec.type == 'comment' then
-        local t = { comment = rec, replies = {} }
+        local t = { comment = rec, replies = {}, chunks = {} }
         byid[rec.id] = t
         threads[#threads + 1] = t
       elseif rec.type == 'reply' and byid[rec.replyTo] then
         table.insert(byid[rec.replyTo].replies, rec)
+        byid[rec.replyTo].chunks = {} -- final reply supersedes streamed chunks
+      elseif rec.type == 'reply-chunk' and byid[rec.replyTo] then
+        table.insert(byid[rec.replyTo].chunks, rec.text)
       elseif rec.type == 'review-request' then
         request = rec
       end
@@ -76,9 +79,16 @@ local function append(root, rec)
 end
 
 local function virt_block(t)
-  local vl, pending = {}, #t.replies == 0
+  local streaming = #t.replies == 0 and #t.chunks > 0
+  local vl, pending = {}, #t.replies == 0 and not streaming
   for i, l in ipairs(vim.split(t.comment.text, '\n')) do
     vl[#vl + 1] = { { '┃ 💬 ' .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
+  end
+  if streaming then -- in-progress reply streamed as reply-chunk records
+    local lines = vim.split(table.concat(t.chunks, ''), '\n')
+    for i, l in ipairs(lines) do
+      vl[#vl + 1] = { { '┃ 🤖 ' .. l .. (i == #lines and ' ▌' or ''), 'MarginReply' } }
+    end
   end
   for _, r in ipairs(t.replies) do
     local prefix = r.edit and '┃ ✏️ ' or '┃ 🤖 ' -- edit:true = AI changed code
