@@ -54,7 +54,8 @@ edited line 27 and the buffer reloaded.
   left, working file right); files that don't exist at base open plain.
 - **Presence priming** — nvim writes `.margin/presence.json` when your cursor
   dwells ~2 s, so the AI pre-reads the code you're looking at before you type.
-- **Zero-dependency compiled TUI** — review any git diff from a bare shell.
+- **Zero-dependency compiled TUI** — view a diff, comment, and read replies
+  from a bare shell (threads, ranges, and resolve are Neovim-only today).
 - **Open, file-based protocol** — anything that can read and append a file can
   integrate.
 
@@ -142,7 +143,7 @@ done
 ## Integrations
 
 - **Claude Code** — the bundled `margin-review` skill (installed by
-  `install.sh`) acks comments within a second, streams answers, makes code
+  `install.sh`) acks new comments first, streams answers, makes code
   edits on request, primes on `presence.json`, and appends `review-request`
   records for its own changes. Run Claude Code in another terminal in the same
   repo and invoke the skill.
