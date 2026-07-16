@@ -93,33 +93,61 @@ local function is_pending(t)
   return not last or last.type ~= 'reply'
 end
 
-local function virt_block(t)
+-- Word-wrap text to `width` display cells (words longer than width stay whole).
+local function wrap(s, width)
+  local out = {}
+  for _, raw in ipairs(vim.split(s, '\n')) do
+    local cur = ''
+    for word in raw:gmatch '%S+' do
+      if cur == '' then
+        cur = word
+      elseif vim.fn.strdisplaywidth(cur .. ' ' .. word) <= width then
+        cur = cur .. ' ' .. word
+      else
+        out[#out + 1] = cur
+        cur = word
+      end
+    end
+    out[#out + 1] = cur -- '' keeps intentional blank lines
+  end
+  return out
+end
+
+local function virt_block(t, width)
+  width = math.max((width or 100) - 6, 20) -- 6 ≈ '┃ 💬 ' prefix cells; never wrap absurdly narrow
   local streaming = #t.chunks > 0 -- chunks are cleared by each final reply
   local vl, pending = {}, is_pending(t) and not streaming
+  local function emit(prefix, text, hl, tail)
+    local lines = wrap(text, width)
+    for i, l in ipairs(lines) do
+      vl[#vl + 1] = { { (i == 1 and prefix or '┃    ') .. l .. (i == #lines and tail or ''), hl } }
+    end
+  end
   local cprefix = t.comment.author == 'ai' and '┃ 💡 ' or '┃ 💬 ' -- 💡 = AI observation
   local range = t.comment.endLine and ('[L%d–%d] '):format(t.comment.line, t.comment.endLine) or ''
-  for i, l in ipairs(vim.split(t.comment.text, '\n')) do
-    vl[#vl + 1] = { { cprefix .. (i == 1 and range or '') .. l .. (pending and i == 1 and ' ⏳' or ''), 'MarginComment' } }
-  end
+  emit(cprefix, range .. t.comment.text, 'MarginComment', pending and ' ⏳' or '')
   for _, r in ipairs(t.replies) do -- interleaved AI/user messages, ts order
     local prefix, hl = r.edit and '┃ ✏️ ' or '┃ 🤖 ', 'MarginReply'
     if r.type == 'user-reply' then prefix, hl = '┃ 👤 ', 'MarginComment' end
-    for _, l in ipairs(vim.split(r.text, '\n')) do
-      vl[#vl + 1] = { { prefix .. l, hl } }
-    end
+    emit(prefix, r.text, hl, '')
   end
   if streaming then -- in-progress reply streamed as reply-chunk records
-    local lines = vim.split(table.concat(t.chunks, ''), '\n')
-    for i, l in ipairs(lines) do
-      vl[#vl + 1] = { { '┃ 🤖 ' .. l .. (i == #lines and ' ▌' or ''), 'MarginReply' } }
-    end
+    emit('┃ 🤖 ', table.concat(t.chunks, ''), 'MarginReply', ' ▌')
   end
   return vl
+end
+
+-- Usable text width of the (first) window showing buf, for wrapping virt_lines.
+local function buf_text_width(buf)
+  local win = vim.fn.win_findbuf(buf)[1]
+  local wi = win and vim.fn.getwininfo(win)[1]
+  return wi and (wi.width - wi.textoff) or nil
 end
 
 local function render_buf(buf, root, threads)
   if hidden[buf] or not vim.api.nvim_buf_is_loaded(buf) then return end
   local rel = vim.api.nvim_buf_get_name(buf):sub(#root + 2)
+  local width = buf_text_width(buf)
   local last = vim.api.nvim_buf_line_count(buf) - 1
   for _, t in ipairs(threads) do
     if t.comment.file == rel then
@@ -134,7 +162,7 @@ local function render_buf(buf, root, threads)
         local pos = id and vim.api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
         local anchor = t.comment.endLine or t.comment.line -- range comments hang under the range
         local row = (pos and pos[1]) or math.min(math.max(anchor - 1, 0), last)
-        markids[key] = vim.api.nvim_buf_set_extmark(buf, ns, math.min(row, last), 0, { id = id, virt_lines = virt_block(t) })
+        markids[key] = vim.api.nvim_buf_set_extmark(buf, ns, math.min(row, last), 0, { id = id, virt_lines = virt_block(t, width) })
       end
     end
   end

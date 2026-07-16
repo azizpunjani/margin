@@ -36,6 +36,12 @@ vim.api.nvim_create_autocmd('BufEnter', {
   callback = function(a) require('margin').attach(a.buf) end,
 })
 
+vim.api.nvim_create_autocmd({ 'WinResized', 'VimResized' }, {
+  group = grp,
+  desc = 'Margin: re-wrap thread text to new window width',
+  callback = function() require('margin').attach(vim.api.nvim_get_current_buf()) end,
+})
+
 -- Presence: write .margin/presence.json when the cursor DWELLS ~2s at a spot —
 -- reading, not scrolling — so the AI primes on code you're actually looking at.
 -- Each CursorMoved resets the timer; the write itself is throttled in M.presence.
