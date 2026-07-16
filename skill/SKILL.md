@@ -89,11 +89,10 @@ dwelling in nvim right now. Use it for priming (below); never reply to it.
      sleep 0.2
    done
    ```
-   **Priming:** when the wake is a comment WITHOUT a submit yet, do NOT reply.
-   Instead read the referenced file around the commented line, work out your
-   answer, and state the draft in your own turn text (it stays in conversation
-   context). Then re-arm the watcher. When the submit wake arrives, append the
-   pre-drafted replies immediately — near-zero thinking time.
+   **Answer immediately on comment wake** (user preference, 2026-07-15): do NOT
+   wait for a submit record — every new comment or user-reply gets an ack chunk
+   + answer the moment it lands. Submit records still appear (nvim <leader>ms)
+   but are legacy/no-op; never hold an answer for one.
    Restart the watcher after every wake. Do NOT use `tail -f | grep -q ...` —
    grep exits on match but the shell keeps waiting on the immortal `tail`, so
    the task never completes and you never wake (verified failure). `fswatch -1`
