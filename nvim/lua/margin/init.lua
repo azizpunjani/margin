@@ -240,7 +240,12 @@ end
 local function open_review_tab(root, file, base)
   vim.cmd.tabedit(vim.fn.fnameescape(root .. '/' .. file))
   local old = vim.fn.systemlist { 'git', '-C', root, 'show', base .. ':' .. file }
-  if vim.v.shell_error ~= 0 then old = {} end -- file new at base
+  if vim.v.shell_error ~= 0 or #old == 0 then
+    -- New at base: a diff would paint every line DiffAdd (unreadable, zero
+    -- signal). Show the file plain with a winbar tag instead.
+    vim.wo.winbar = '%#DiffAdd# ● NEW FILE %*' .. ' ' .. file
+    return
+  end
   vim.cmd 'leftabove vertical new'
   local lbuf = vim.api.nvim_get_current_buf()
   vim.api.nvim_buf_set_lines(lbuf, 0, -1, false, old)
