@@ -63,24 +63,28 @@ A comment is **pending** if no reply line references its id.
    ```
    Escape the JSON properly (prefer writing via a heredoc or `jq -n` if quotes get hairy).
 6. Also print each answer in the terminal so the user sees it here too.
-7. Then keep watching for further `submit` records with a background bash task
-   (run_in_background) that EXITS when a new submit lands — its completion
-   notification wakes you. Use this exact pattern (a fast poll on submit COUNT):
+7. Then keep watching with a background bash task (run_in_background) that
+   EXITS when a new COMMENT **or** SUBMIT lands — its completion notification
+   wakes you. Use this exact pattern (fast poll on record counts):
    ```bash
-   # background bash: exits (-> wakes Claude) when a NEW submit is appended
+   # background bash: exits (-> wakes Claude) on any new comment or submit
    F=<repo-root>/.margin/review.jsonl
-   N=$(grep -c '"type":"submit"' "$F")
+   N=$(grep -c '"type":"\(comment\|submit\)"' "$F")
    while :; do
-     C=$(grep -c '"type":"submit"' "$F" 2>/dev/null || echo 0)
-     [ "$C" -gt "$N" ] && { echo NEW_SUBMIT; exit 0; }
+     C=$(grep -c '"type":"\(comment\|submit\)"' "$F" 2>/dev/null || echo 0)
+     [ "$C" -gt "$N" ] && { echo "WAKE ($C records)"; exit 0; }
      sleep 0.2
    done
    ```
-   Restart the watcher after answering each batch. Do NOT use
-   `tail -f | grep -q ...` — grep exits on match but the shell keeps waiting on
-   the immortal `tail`, so the task never completes and you never wake (verified
-   failure). `fswatch -1` in a loop is fine IF fswatch is installed (it isn't by
-   default on this machine).
+   **Priming:** when the wake is a comment WITHOUT a submit yet, do NOT reply.
+   Instead read the referenced file around the commented line, work out your
+   answer, and state the draft in your own turn text (it stays in conversation
+   context). Then re-arm the watcher. When the submit wake arrives, append the
+   pre-drafted replies immediately — near-zero thinking time.
+   Restart the watcher after every wake. Do NOT use `tail -f | grep -q ...` —
+   grep exits on match but the shell keeps waiting on the immortal `tail`, so
+   the task never completes and you never wake (verified failure). `fswatch -1`
+   in a loop is fine IF fswatch is installed (it isn't by default here).
 
 ## Requesting review of your own changes (nvim)
 
